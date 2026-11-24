@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.log
+.env
+.env.*
+# Modelo de voz (~31 MB): baixado por `npm run models`
+public/models/*
+!public/models/.gitkeep

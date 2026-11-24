@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone monocromático da notificação: balão com ondas de voz (mesmo desenho do logo). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32,6C17,6 6,16.4 6,29.5c0,7.4 3.6,14 9.4,18.3L13,58l11.6,-6.1c2.3,0.6 4.8,0.9 7.4,0.9 15,0 26,-10.4 26,-23.3S47,6 32,6ZM24,23a2,2 0,0 0,-2 2v9a2,2 0,0 0,4 0v-9a2,2 0,0 0,-2 -2ZM32,18a2,2 0,0 0,-2 2v19a2,2 0,0 0,4 0V20a2,2 0,0 0,-2 -2ZM40,23a2,2 0,0 0,-2 2v9a2,2 0,0 0,4 0v-9a2,2 0,0 0,-2 -2Z" />
+</vector>

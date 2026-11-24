@@ -1,0 +1,25 @@
+appId: com.oichat.app
+productName: Oi Chat
+copyright: Oi Chat
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - resources/icons/**/*
+  - package.json
+asar: true
+win:
+  icon: resources/icons/app.ico
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Oi Chat
+  artifactName: OiChat-Setup-${version}.${ext}
