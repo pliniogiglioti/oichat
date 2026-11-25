@@ -21,7 +21,7 @@
     "build:win": "npm run build && npm run electron:main && electron-builder --win",
     "cap:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
-    "android:apk": "npm run cap:sync && cd android && gradlew.bat assembleDebug"
+    "android:apk": "npm run cap:sync && cd android && .\\gradlew.bat assembleDebug"
   },
   "devDependencies": {
     "@capacitor/android": "^8.6.2",

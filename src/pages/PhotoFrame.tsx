@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, X } from 'lucide-react';
+import { ArrowLeft, FolderOpen } from 'lucide-react';
 import { Button } from '../components/ui';
 import { useAssistant } from '../stores/assistantStore';
 import { useSettings } from '../stores/settingsStore';
+import { platform } from '../services/platform';
 import { useUi } from '../stores/uiStore';
+
+// No Android a WebView não escolhe pastas: abre o seletor de fotos do sistema (inclui o Google Fotos).
+const isAndroid = platform === 'android';
 
 function inNightWindow(start: string, end: string, now = new Date()) {
   const toMin = (t: string) => {
@@ -78,7 +82,7 @@ export function PhotoFrame() {
     assistant === 'listening' ? 'bg-emerald-400' : assistant === 'error' ? 'bg-rose-500' : 'bg-zinc-500';
 
   return (
-    <div className="fixed inset-0 bg-black text-white" onClick={() => setControls(true)}>
+    <div className="page-in-right fixed inset-0 bg-black text-white" onClick={() => setControls(true)}>
       {night ? (
         <div className="grid h-full place-items-center text-5xl font-light text-zinc-700">
           {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -88,10 +92,18 @@ export function PhotoFrame() {
       ) : (
         <div className="grid h-full place-items-center p-6 text-center">
           <div className="flex flex-col items-center gap-4">
-            <p className="text-zinc-400">Escolha uma pasta com fotos para começar.</p>
+            <p className="text-zinc-400">
+              {isAndroid ? 'Escolha as fotos para começar.' : 'Escolha uma pasta com fotos para começar.'}
+            </p>
             <Button variant="primary" onClick={() => input.current?.click()}>
-              <FolderOpen className="size-4" /> Escolher pasta
+              <FolderOpen className="size-4" /> {isAndroid ? 'Escolher fotos' : 'Escolher pasta'}
             </Button>
+            {isAndroid && (
+              <p className="max-w-xs text-xs text-zinc-500">
+                No seletor do Android aparecem as fotos do aparelho e, se o Google Fotos estiver ligado no celular, as
+                da nuvem também. Toque e segure para escolher várias.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -102,7 +114,7 @@ export function PhotoFrame() {
         accept="image/*"
         multiple
         hidden
-        {...{ webkitdirectory: '' }}
+        {...(isAndroid ? {} : { webkitdirectory: '' })}
         onChange={(e) => {
           const list = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
           setFiles(list);
@@ -111,23 +123,32 @@ export function PhotoFrame() {
       />
 
       {/* Indicador discreto do assistente */}
-      <span className={`absolute right-4 bottom-4 size-3 rounded-full ${dot} shadow-lg`} title={assistant} />
+      <span
+        className={`absolute size-3 rounded-full ${dot} shadow-lg`}
+        style={{ right: 'calc(var(--sar) + 1rem)', bottom: 'calc(var(--sab) + 1rem)' }}
+        title={assistant}
+      />
 
       {controls && (
-        <div className="absolute inset-x-0 top-0 flex justify-between bg-gradient-to-b from-black/70 to-transparent p-4">
-          <Button variant="ghost" className="text-white hover:bg-white/10" onClick={() => input.current?.click()}>
-            <FolderOpen className="size-4" /> Pasta
-          </Button>
+        <div
+          className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-4 pb-3"
+          style={{ paddingTop: 'calc(var(--sat) + 0.75rem)', paddingLeft: 'calc(var(--sal) + 1rem)', paddingRight: 'calc(var(--sar) + 1rem)' }}
+        >
+          {/* Mesmo cabeçalho das Configurações: seta de voltar + título */}
           <Button
             variant="ghost"
-            className="text-white hover:bg-white/10"
-            aria-label="Sair do porta-retratos"
+            className="px-2 text-white hover:bg-white/10"
+            aria-label="Voltar"
             onClick={(e) => {
               e.stopPropagation();
               go('home');
             }}
           >
-            <X className="size-5" />
+            <ArrowLeft className="size-5" />
+          </Button>
+          <h1 className="flex-1 text-lg font-semibold">Porta-retratos</h1>
+          <Button variant="ghost" className="text-white hover:bg-white/10" onClick={() => input.current?.click()}>
+            <FolderOpen className="size-4" /> {isAndroid ? 'Fotos' : 'Pasta'}
           </Button>
         </div>
       )}

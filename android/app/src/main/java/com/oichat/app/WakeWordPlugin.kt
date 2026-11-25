@@ -133,6 +133,32 @@ class WakeWordPlugin : Plugin() {
         )
     }
 
+    @PluginMethod
+    fun chatGPTApp(call: PluginCall) {
+        call.resolve(JSObject().put("installed", ChatGPTLauncher.officialAppInstalled(context)))
+    }
+
+    @PluginMethod
+    fun openChatGPTApp(call: PluginCall) {
+        val launch = context.packageManager.getLaunchIntentForPackage(ChatGPTLauncher.CHATGPT_PACKAGE)
+            ?: return call.resolve(JSObject().put("opened", false))
+        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        call.resolve(JSObject().put("opened", true))
+    }
+
+    @PluginMethod
+    fun installChatGPTApp(call: PluginCall) {
+        val pkg = ChatGPTLauncher.CHATGPT_PACKAGE
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+        call.resolve()
+    }
+
     /** Abre a tela do sistema onde o usuário ajusta algo. O app nunca muda isso sozinho. */
     @PluginMethod
     fun openSettings(call: PluginCall) {

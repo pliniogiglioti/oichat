@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useAssistant } from '../stores/assistantStore';
+import { useMicLevel } from '../stores/micLevelStore';
 
 type Variant = 'primary' | 'secondary' | 'ghost';
 
@@ -110,12 +112,36 @@ export function Slider({
 
 export function PageHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-2 bg-zinc-50/80 px-4 py-3 backdrop-blur dark:bg-[#0a0a0f]/80">
+    // Fica colado no topo da tela, mas com o conteúdo abaixo da barra de status do Android.
+    <header
+      className="sticky top-0 z-10 flex items-center gap-2 bg-zinc-50/90 px-4 pb-3 backdrop-blur dark:bg-[#0a0a0f]/90"
+      style={{ marginTop: 'calc(-1 * var(--sat))', paddingTop: 'calc(var(--sat) + 0.75rem)' }}
+    >
       <Button variant="ghost" onClick={onBack} aria-label="Voltar" className="px-2">
         <ArrowLeft className="size-5" />
       </Button>
-      <h1 className="text-lg font-semibold">{title}</h1>
+      <h1 className="flex-1 text-lg font-semibold">{title}</h1>
+      <ListeningDot />
     </header>
+  );
+}
+
+/** Mostra, fora da tela principal, que o Oi Chat continua ouvindo (pulsa com o som). */
+function ListeningDot() {
+  const state = useAssistant((s) => s.state);
+  const level = useMicLevel((s) => s.level);
+  if (state !== 'listening') return null;
+  return (
+    <span className="flex items-center gap-2 pr-1 text-xs text-emerald-500" title="Ouvindo “Oi, Chat”">
+      <span className="relative grid size-4 place-items-center">
+        <span
+          className="absolute inset-0 rounded-full bg-emerald-400/40 transition-transform duration-100"
+          style={{ transform: `scale(${1 + level * 1.5})` }}
+        />
+        <span className="relative size-2.5 rounded-full bg-emerald-400" />
+      </span>
+      Ouvindo
+    </span>
   );
 }
 

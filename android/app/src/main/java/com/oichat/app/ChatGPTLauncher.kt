@@ -11,7 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 /**
  * Abertura do ChatGPT no Android.
  *
- * Padrão (igual ao Windows): ChatGPT oficial (chatgpt.com) dentro do Oi Chat, na ChatGPTActivity.
+ * Padrão: app oficial do ChatGPT (login com Google funciona). Sem o app: chatgpt.com na ChatGPTActivity.
  * O Android só deixa abrir uma tela a partir do serviço quando:
  *  - o Oi Chat já está visível; ou
  *  - o usuário concedeu "Sobrepor a outros apps" (SYSTEM_ALERT_WINDOW).
@@ -27,11 +27,17 @@ object ChatGPTLauncher {
 
     /** @return true se a tela foi aberta; false se virou notificação. */
     fun open(ctx: Context, voice: Boolean): Boolean {
-        val intent = Intent(ctx, ChatGPTActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            .putExtra(ChatGPTActivity.EXTRA_VOICE, voice)
+        // App oficial do ChatGPT (onde o login com Google funciona); sem ele, a versão dentro do Oi Chat.
+        val intent = ctx.packageManager.getLaunchIntentForPackage(CHATGPT_PACKAGE)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?: Intent(ctx, ChatGPTActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(ChatGPTActivity.EXTRA_VOICE, voice)
         if (canOpenFromBackground(ctx)) {
+            val official = intent.component?.packageName == CHATGPT_PACKAGE
+            if (official) ChatGPTAccessibilityService.arm()
             ctx.startActivity(intent)
+            if (official) OiChatBus.setState("released")
             return true
         }
         postTapNotification(ctx, intent)

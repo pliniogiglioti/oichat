@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { WakeWordNative } from '../services/androidPlugin';
 import { platform } from '../services/platform';
 import { useAssistant } from '../stores/assistantStore';
+import { setMicLevel } from '../stores/micLevelStore';
 import { useSettings } from '../stores/settingsStore';
 import { useUi } from '../stores/uiStore';
 
@@ -38,8 +39,10 @@ export function useAndroidBridge(ready: boolean) {
     void WakeWordNative.getState().then((s) => apply(s.state, s.error));
     const hState = WakeWordNative.addListener('state', (e) => apply(e.state, e.error));
     const hLoading = WakeWordNative.addListener('loading', (e) => useAssistant.setState({ loading: e.loading }));
+    const hLevel = WakeWordNative.addListener('level', (e) => setMicLevel(e.level));
 
     return () => {
+      void hLevel.then((h) => h.remove());
       offSettings();
       void hState.then((h) => h.remove());
       void hLoading.then((h) => h.remove());

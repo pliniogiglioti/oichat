@@ -1,3 +1,4 @@
+import { rmsToLevel, setMicLevel } from '../stores/micLevelStore';
 import type { ListenFor, StartOptions, WakeWordEngine } from './wakeWord';
 
 /**
@@ -143,12 +144,14 @@ export class VoskEngine implements WakeWordEngine {
     let lastLevelLog = 0;
     node.port.onmessage = (e: MessageEvent<Float32Array>) => {
       if (!this.fired) this.recognizer?.acceptWaveformFloat(e.data, ctx.sampleRate);
-      // Diagnóstico: volume que chega ao microfone (só um número, nenhum áudio é guardado).
+      // Volume que chega ao microfone (só um número, nenhum áudio é guardado): anima a esfera.
+      let sum = 0;
+      for (let i = 0; i < e.data.length; i++) sum += e.data[i] * e.data[i];
+      const rms = Math.sqrt(sum / e.data.length);
+      if (listenFor === 'wake') setMicLevel(rmsToLevel(rms));
       if (debug && Date.now() - lastLevelLog > 3000) {
         lastLevelLog = Date.now();
-        let sum = 0;
-        for (let i = 0; i < e.data.length; i++) sum += e.data[i] * e.data[i];
-        console.info(`[oichat] nível do microfone: ${Math.sqrt(sum / e.data.length).toFixed(4)}`);
+        console.info(`[oichat] nível do microfone: ${rms.toFixed(4)}`);
       }
     };
     source.connect(node);
@@ -157,6 +160,7 @@ export class VoskEngine implements WakeWordEngine {
   }
 
   async stop() {
+    setMicLevel(0);
     this.node?.port.close();
     this.node?.disconnect();
     this.node = undefined;

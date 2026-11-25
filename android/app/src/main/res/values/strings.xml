@@ -4,4 +4,6 @@
     <string name="title_activity_main">Oi Chat</string>
     <string name="package_name">com.oichat.app</string>
     <string name="custom_url_scheme">com.oichat.app</string>
+    <string name="a11y_label">Oi Chat: abrir o ChatGPT por voz</string>
+    <string name="a11y_description">Depois do “Oi, Chat”, toca sozinho no botão de conversa por voz do app do ChatGPT, envia a saudação e percebe quando a conversa termina para voltar a ouvir. Só lê os rótulos dos botões do app do ChatGPT; não lê nem guarda a conversa.</string>
 </resources>

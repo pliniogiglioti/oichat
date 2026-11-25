@@ -35,9 +35,16 @@ export interface WakeWordPluginApi {
   requestAll(): Promise<{ microphone: string; notifications: string }>;
   diagnostics(): Promise<AndroidDiagnostics>;
   openSettings(opts: { which: AndroidSettingsScreen }): Promise<void>;
+  /** App oficial do ChatGPT: está instalado? */
+  chatGPTApp(): Promise<{ installed: boolean }>;
+  /** Abre o app oficial do ChatGPT (para o login com Google, feito pelo usuário). */
+  openChatGPTApp(): Promise<{ opened: boolean }>;
+  /** Abre a página do ChatGPT na Play Store. */
+  installChatGPTApp(): Promise<void>;
   addListener(event: 'state', cb: (e: { state: AssistantState; error: string | null }) => void): Promise<PluginListenerHandle>;
   addListener(event: 'heard', cb: (e: { text: string }) => void): Promise<PluginListenerHandle>;
   addListener(event: 'detected', cb: (e: { mode: 'wake' }) => void): Promise<PluginListenerHandle>;
+  addListener(event: 'level', cb: (e: { level: number }) => void): Promise<PluginListenerHandle>;
   addListener(event: 'loading', cb: (e: { loading: boolean }) => void): Promise<PluginListenerHandle>;
 }
 

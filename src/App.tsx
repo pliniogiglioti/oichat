@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChatGPTBar } from './components/ChatGPTBar';
 import { useAndroidBridge } from './hooks/useAndroidBridge';
 import { useDesktopBridge } from './hooks/useDesktopBridge';
@@ -69,14 +69,28 @@ export function App() {
   if (!loginConfirmed) return <Login />;
   if (!onboardingDone) return <Onboarding />;
 
-  switch (page) {
-    case 'settings':
-      return <Settings />;
-    case 'diagnostics':
-      return <Diagnostics />;
-    case 'photoFrame':
-      return <PhotoFrame />;
-    default:
-      return <Home />;
+  return <PageTransition page={page} />;
+}
+
+/** Telas internas entram deslizando pela lateral: da direita ao avançar, da esquerda ao voltar. */
+const DEPTH: Record<string, number> = { home: 0, photoFrame: 1, settings: 1, diagnostics: 2 };
+
+function PageTransition({ page }: { page: string }) {
+  const prev = useRef(page);
+  const dir = useRef<'forward' | 'back' | null>(null);
+  if (prev.current !== page) {
+    dir.current = (DEPTH[page] ?? 0) >= (DEPTH[prev.current] ?? 0) ? 'forward' : 'back';
+    prev.current = page;
   }
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
+  const anim = dir.current === 'forward' ? 'page-in-right' : dir.current === 'back' ? 'page-in-left' : '';
+  // O porta-retratos é tela cheia (fixed): ele mesmo anima, senão o menu entra deslocado pela barra de status.
+  if (page === 'photoFrame') return <PhotoFrame key={page} />;
+  return (
+    <div key={page} className={`min-h-full ${anim}`}>
+      {page === 'settings' ? <Settings /> : page === 'diagnostics' ? <Diagnostics /> : <Home />}
+    </div>
+  );
 }

@@ -24,7 +24,7 @@ export function Home() {
   const go = useUi((s) => s.go);
 
   return (
-    <main className="mx-auto flex min-h-full max-w-md flex-col px-6 py-5">
+    <main className="mx-auto flex min-h-[calc(100dvh-var(--sat)-var(--sab))] max-w-md flex-col px-6 py-5">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Logo size={32} />

@@ -1,5 +1,6 @@
 import { Mic, MicOff, AlertTriangle, ExternalLink, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useMicLevel } from '../stores/micLevelStore';
 import type { AssistantState } from '../types';
 
 const palette: Record<AssistantState, { core: string; glow: string }> = {
@@ -23,6 +24,9 @@ const icon: Record<AssistantState, ReactNode> = {
 export function Orb({ state, onClick }: { state: AssistantState; onClick?: () => void }) {
   const c = palette[state];
   const pulsing = state === 'listening';
+  // Cresce com o som que chega ao microfone: mostra que o Oi Chat está ouvindo de verdade.
+  const raw = useMicLevel((s) => s.level);
+  const level = pulsing ? raw : 0;
   return (
     <button
       type="button"
@@ -36,20 +40,25 @@ export function Orb({ state, onClick }: { state: AssistantState; onClick?: () =>
           <span className={`orb-ring delay absolute inset-6 rounded-full ${c.glow}`} />
         </>
       )}
-      <span className={`absolute inset-4 rounded-full blur-2xl ${c.glow}`} />
+      <span
+        className={`absolute inset-4 rounded-full blur-2xl transition-transform duration-100 ${c.glow}`}
+        style={{ transform: `scale(${1 + level * 0.2})`, opacity: pulsing ? 0.6 + level * 0.4 : undefined }}
+      />
       {state === 'opening' && (
         <span className="orb-spin absolute inset-2 rounded-full border-4 border-transparent border-t-sky-300/80" />
       )}
-      <span
-        key={state}
-        className={[
-          'relative grid size-40 place-items-center rounded-full bg-gradient-to-br text-white shadow-2xl transition-colors duration-500 sm:size-44',
-          c.core,
-          state === 'listening' ? 'orb-breathe' : '',
-          state === 'detected' ? 'orb-pop' : '',
-        ].join(' ')}
-      >
-        {icon[state]}
+      <span className="relative grid place-items-center transition-transform duration-100 ease-out" style={{ transform: `scale(${1 + level * 0.12})` }}>
+        <span
+          key={state}
+          className={[
+            'grid size-40 place-items-center rounded-full bg-gradient-to-br text-white shadow-2xl transition-colors duration-500 sm:size-44',
+            c.core,
+            state === 'listening' ? 'orb-breathe' : '',
+            state === 'detected' ? 'orb-pop' : '',
+          ].join(' ')}
+        >
+          {icon[state]}
+        </span>
       </span>
     </button>
   );

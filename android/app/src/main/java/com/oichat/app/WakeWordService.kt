@@ -10,7 +10,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.annotation.SuppressLint
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler
@@ -24,10 +28,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.log10
+import kotlin.math.sqrt
 import org.vosk.Model
 import org.vosk.Recognizer
-import org.vosk.android.RecognitionListener
-import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
 
 /**
@@ -35,13 +39,14 @@ import org.vosk.android.StorageService
  * Foreground Service do tipo microfone, com notificação permanente.
  * Nenhum áudio é gravado nem enviado: o reconhecedor só conhece as frases da gramática.
  */
-class WakeWordService : Service(), RecognitionListener {
+class WakeWordService : Service() {
 
     companion object {
         private const val TAG = "OiChat"
         const val ACTION_START = "com.oichat.app.START"
         const val ACTION_STOP = "com.oichat.app.STOP"
         const val ACTION_RESUME = "com.oichat.app.RESUME"
+        const val ACTION_REFRESH_MIC = "com.oichat.app.REFRESH_MIC"
         const val ACTION_CHAT_OPENED = "com.oichat.app.CHAT_OPENED"
         const val ACTION_GOODBYE = "com.oichat.app.GOODBYE"
         const val ACTION_TEST_START = "com.oichat.app.TEST_START"
@@ -96,10 +101,16 @@ class WakeWordService : Service(), RecognitionListener {
     private val handler = Handler(Looper.getMainLooper())
     private var model: Model? = null
     private var loadingModel = false
-    private var speech: SpeechService? = null
+    // Leitura própria do microfone (em vez do SpeechService do Vosk) para medir o volume.
+    private var recognizer: Recognizer? = null
+    private var micThread: Thread? = null
+    @Volatile private var micRunning = false
+    private var generation = 0
     private var mode = Mode.NONE
     private var testMode = false
     private var fired = false
+    /** Já chegou algum som desde que o microfone foi aberto (zeros = captura bloqueada pelo Android). */
+    @Volatile private var micHasSound = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -119,7 +130,10 @@ class WakeWordService : Service(), RecognitionListener {
                 testMode = false
                 listen(Mode.WAKE)
             }
-            ACTION_RESUME -> listen(Mode.WAKE)
+            ACTION_RESUME -> listen(Mode.WAKE, silenceRetries = 3)
+            // O Oi Chat voltou para a tela: se o microfone foi aberto com o app fora da tela, o Android
+            // só entregou silêncio. Agora que está visível, reabre.
+            ACTION_REFRESH_MIC -> if (mode == Mode.WAKE && !micHasSound) listen(Mode.WAKE)
             ACTION_CHAT_OPENED -> {
                 stopListening() // libera o microfone para o modo de voz do ChatGPT
                 OiChatBus.setState("released")
@@ -233,14 +247,16 @@ class WakeWordService : Service(), RecognitionListener {
         )
     }
 
-    private fun listen(target: Mode) {
+    /** @param silenceRetries depois de outro app usar o microfone: reabre se a captura vier silenciada. */
+    private fun listen(target: Mode, silenceRetries: Int = 0) {
         stopListening()
         withModel { m ->
             try {
                 val phrases = if (target == Mode.WAKE) WAKE else GOODBYE
                 val grammar = JSONArray(phrases + "[unk]").toString()
                 val rec = Recognizer(m, SAMPLE_RATE, grammar).apply { setWords(true) }
-                speech = SpeechService(rec, SAMPLE_RATE).also { it.startListening(this) }
+                recognizer = rec
+                startMic(rec, silenceRetries)
                 mode = target
                 fired = false
                 if (target == Mode.WAKE) OiChatBus.setState("listening")
@@ -252,10 +268,83 @@ class WakeWordService : Service(), RecognitionListener {
     }
 
     private fun stopListening() {
-        speech?.stop()
-        speech?.shutdown()
-        speech = null
+        generation++ // descarta resultados que ainda estejam a caminho
+        micRunning = false
+        micThread?.join(1000)
+        micThread = null
+        recognizer?.close()
+        recognizer = null
         mode = Mode.NONE
+        OiChatBus.emit("level", mapOf("level" to 0.0))
+    }
+
+    /**
+     * Lê o microfone em blocos de 0,1 s: mede o volume (só um número, para a animação da tela)
+     * e entrega o áudio ao Vosk. Nada é gravado.
+     */
+    @SuppressLint("MissingPermission") // checada em goForeground()
+    private fun startMic(rec: Recognizer, silenceRetries: Int) {
+        val rate = SAMPLE_RATE.toInt()
+        val minBuf = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val audio = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION, rate,
+            AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, rate / 5 * 2),
+        )
+        if (audio.state != AudioRecord.STATE_INITIALIZED) {
+            audio.release()
+            throw IllegalStateException("microfone indisponível")
+        }
+        audio.startRecording()
+        val gen = generation
+        micRunning = true
+        micThread = Thread {
+            val buf = ShortArray(rate / 10)
+            var lastLevel = 0L
+            val startedAt = System.currentTimeMillis()
+            var gotSound = false
+            micHasSound = false
+            try {
+                while (micRunning) {
+                    val n = audio.read(buf, 0, buf.size)
+                    if (n < 0) {
+                        handler.post { if (gen == generation) fail("Erro no microfone ($n)") }
+                        break
+                    }
+                    if (n == 0) continue
+                    val now = System.currentTimeMillis()
+                    // Captura "silenciada" pelo Android (outro app acabou de usar o microfone) só entrega
+                    // zeros. Se nada além de zero chegar em 3 s, reabre (poucas vezes: fones com
+                    // cancelamento de ruído também mandam zeros quando ninguém fala).
+                    if (!gotSound && buf.any { it.toInt() != 0 }) {
+                        gotSound = true
+                        micHasSound = true
+                    }
+                    if (!gotSound && silenceRetries > 0 && now - startedAt > 3000) {
+                        Log.i(TAG, "microfone silenciado; reabrindo")
+                        val target = mode
+                        handler.post { if (gen == generation && target != Mode.NONE) listen(target, silenceRetries - 1) }
+                        break
+                    }
+                    if (now - lastLevel >= 80) {
+                        lastLevel = now
+                        var sum = 0.0
+                        for (i in 0 until n) sum += buf[i].toDouble() * buf[i]
+                        val rms = sqrt(sum / n) / 32768.0
+                        val db = if (rms > 0) 20 * log10(rms) else -100.0
+                        OiChatBus.emit("level", mapOf("level" to ((db + 65) / 45).coerceIn(0.0, 1.0)))
+                    }
+                    val isFinal = rec.acceptWaveForm(buf, n)
+                    val json = if (isFinal) rec.result else rec.partialResult
+                    handler.post {
+                        if (gen != generation) return@post
+                        if (isFinal) handleFinal(json) else onPartialResult(json)
+                    }
+                }
+            } finally {
+                try { audio.stop() } catch (_: Exception) { }
+                audio.release()
+            }
+        }.apply { name = "oichat-mic"; start() }
     }
 
     private fun fail(message: String) {
@@ -267,7 +356,7 @@ class WakeWordService : Service(), RecognitionListener {
 
     private fun minConfidence(): Float = 0.95f - OiChatConfig.read(this).sensitivity * 0.6f
 
-    override fun onPartialResult(hypothesis: String?) {
+    private fun onPartialResult(hypothesis: String?) {
         val text = hypothesis?.let { JSONObject(it).optString("partial") }.orEmpty()
         if (text.isEmpty()) return
         OiChatBus.emit("heard", mapOf("text" to text))
@@ -276,8 +365,6 @@ class WakeWordService : Service(), RecognitionListener {
         if (usePartial && matches(text)) fire()
     }
 
-    override fun onResult(hypothesis: String?) = handleFinal(hypothesis)
-    override fun onFinalResult(hypothesis: String?) = handleFinal(hypothesis)
 
     private fun handleFinal(hypothesis: String?) {
         val json = hypothesis?.let { JSONObject(it) } ?: return
@@ -295,9 +382,6 @@ class WakeWordService : Service(), RecognitionListener {
 
     private fun matches(text: String) = if (mode == Mode.GOODBYE) GOODBYE_RE.containsMatchIn(text) else WAKE_RE.containsMatchIn(text)
 
-    override fun onError(exception: Exception?) = fail("Erro no microfone: ${exception?.message}")
-
-    override fun onTimeout() = listen(Mode.WAKE)
 
     private fun fire() {
         if (fired) return

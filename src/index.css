@@ -14,10 +14,21 @@ body,
   height: 100%;
 }
 
-/* Android 15+ desenha o app atrás das barras do sistema: respeita as áreas seguras. */
+/* Android 15+ desenha o app atrás das barras do sistema: respeita as áreas seguras.
+   env() nas WebViews novas; --safe-area-inset-* é injetada pelo Capacitor nas antigas. */
+:root {
+  --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --sar: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --sal: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+}
 #root {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
   box-sizing: border-box;
+}
+/* Telas em fixed/inset-0 ignoram o padding do #root: use .safe-area nelas. */
+.safe-area {
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
 }
 
 body {
@@ -54,6 +65,19 @@ body {
 }
 .photo-fade { animation: fade-in 1.2s ease; }
 
+/* ===== Troca de tela (desliza pela lateral) ===== */
+@keyframes page-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes page-in-left {
+  from { transform: translateX(-30%); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.page-in-right { animation: page-in-right 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.page-in-left { animation: page-in-left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+body { overflow-x: hidden; }
+
 @media (prefers-reduced-motion: reduce) {
-  .orb-breathe, .orb-ring, .orb-spin, .orb-pop, .photo-fade { animation: none; }
+  .orb-breathe, .orb-ring, .orb-spin, .orb-pop, .photo-fade, .page-in-right, .page-in-left { animation: none; }
 }
